@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 import os
 import queue
-import random
 import re
 import subprocess
 import sys
@@ -38,6 +37,7 @@ COMBOS = [
     for mld in (10, 15, 20, 25, 30)
 ]
 VALID_DURATIONS = {10, 30, 50}
+FIXED_SEED = int(os.environ.get("CAPSIM_SEED", "1"))
 
 _event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
 _run_lock = threading.Lock()
@@ -226,7 +226,7 @@ def _start_run(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         _event_queue = queue.Queue()
         eq = _event_queue
 
-    seed = random.randint(1, 999999)
+    seed = FIXED_SEED
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
         [str(SHIM_DIR), str(REPO_DIR), env.get("PYTHONPATH", "")]
