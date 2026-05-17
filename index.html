@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi v9 BEB vs RL Mbps Simulation</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f6f7fb;color:#172033}
+button{font:inherit}
+.shell{min-height:100vh;display:grid;grid-template-rows:auto 1fr}
+header{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.92);border-bottom:1px solid #dde3ee;backdrop-filter:blur(14px)}
+.header-inner{max-width:1180px;margin:0 auto;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:18px}
+h1{margin:0;font-size:clamp(1rem,2.4vw,1.35rem);line-height:1.35;font-weight:850;color:#24304a}
+.status-pill{display:inline-flex;align-items:center;gap:8px;border:1px solid #d7deea;border-radius:999px;background:#fff;padding:8px 13px;font-size:.78rem;font-weight:750;color:#526178;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:#94a3b8}
+.dot.run{background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.14)}
+main{max-width:1180px;width:100%;margin:0 auto;padding:22px}
+.phase{display:none}
+.phase.active{display:block}
+.layout{display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start}
+.panel{background:#fff;border:1px solid #dfe6f1;border-radius:8px;box-shadow:0 12px 28px rgba(31,41,55,.07)}
+.controls{padding:18px}
+.section-title{margin:0 0 12px;font-size:.88rem;font-weight:850;color:#25304a}
+.combo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+.combo-btn,.duration-btn,.start-btn,.secondary-btn{border:1px solid #d5deea;background:#fff;color:#334155;border-radius:7px;cursor:pointer;font-weight:750;transition:transform .12s,border-color .12s,background .12s,color .12s}
+.combo-btn{height:42px;font-size:.82rem}
+.combo-btn:hover,.duration-btn:hover,.secondary-btn:hover{border-color:#3b82f6;color:#1d4ed8}
+.combo-btn.active{background:#1f3a5f;border-color:#1f3a5f;color:#fff}
+.duration-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+.duration-btn{height:40px;font-size:.84rem}
+.duration-btn.active{background:#eaf2ff;border-color:#3b82f6;color:#1d4ed8}
+.start-btn{width:100%;height:46px;background:#2563eb;border-color:#2563eb;color:#fff;font-size:.94rem}
+.start-btn:disabled{opacity:.5;cursor:not-allowed}
+.secondary-btn{height:42px;padding:0 18px}
+.hint{margin:12px 0 0;font-size:.76rem;line-height:1.55;color:#64748b}
+.stage{padding:18px}
+.scenario-strip{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px}
+.scenario-name{font-weight:850;font-size:1rem;color:#1e293b}
+.scenario-meta{font-size:.78rem;color:#64748b;margin-top:3px}
+.duration-meter{min-width:180px}
+.meter-label{display:flex;justify-content:space-between;font-size:.72rem;color:#64748b;margin-bottom:6px}
+.meter-track{height:9px;border-radius:999px;background:#edf1f7;overflow:hidden}
+.meter-fill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#16a34a);transition:width .24s linear}
+.compare{display:grid;grid-template-columns:1fr 50px 1fr;gap:12px;align-items:stretch}
+.sim-card{padding:16px;border-radius:8px;border:1px solid #e4eaf3;background:#fbfdff;min-width:0}
+.sim-card.beb{border-top:4px solid #d9466f}
+.sim-card.rl{border-top:4px solid #2563eb}
+.sim-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.sim-title strong{font-size:.96rem}
+.sim-title span{font-size:.72rem;color:#64748b;font-weight:750}
+.gauge{height:136px;display:grid;place-items:center}
+.gauge svg{width:190px;max-width:100%;height:auto}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}
+.metric{background:#fff;border:1px solid #e5eaf2;border-radius:7px;padding:9px 7px;text-align:center;min-width:0}
+.metric b{display:block;font-size:1rem;color:#172033;white-space:nowrap}
+.metric span{font-size:.65rem;color:#64748b;font-weight:750}
+.packet-grid{display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:12px}
+.packet{height:7px;border-radius:2px;background:#e5eaf2}
+.packet.beb-on{background:#d9466f}
+.packet.rl-on{background:#2563eb}
+.vs{display:grid;place-items:center;color:#94a3b8;font-weight:900}
+.log{margin-top:14px;background:#111827;color:#cbd5e1;border-radius:8px;padding:12px;height:150px;overflow:auto;font:12px/1.5 Consolas,monospace;white-space:pre-wrap}
+.results{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.chart-card{padding:16px}
+.chart-card h3{margin:0 0 10px;text-align:center;font-size:.86rem;color:#475569}
+canvas{display:block;width:100%;height:230px}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th,td{padding:10px 12px;border-bottom:1px solid #edf1f7;text-align:center}
+th{color:#64748b;background:#f8fafc}
+td:first-child{text-align:left;color:#475569;font-weight:750}
+.winner{margin-top:14px;padding:18px;text-align:center}
+.winner-value{font-size:2.2rem;font-weight:900;color:#16a34a}
+.winner-label{font-size:.86rem;color:#64748b;margin-top:4px}
+.actions{display:flex;justify-content:center;gap:10px;margin-top:16px}
+@media(max-width:860px){
+  .layout{grid-template-columns:1fr}
+  .compare{grid-template-columns:1fr}
+  .vs{height:28px}
+  .results{grid-template-columns:1fr}
+  .header-inner{align-items:flex-start;flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="header-inner">
+      <h1>Adaptive Reinforcement Learning-Based Uplink Access<br>WiFi v9 BEB vs RL Mbps Simulation</h1>
+      <div class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText">대기 중</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section id="phaseSetup" class="phase active">
+      <div class="layout">
+        <aside class="panel controls">
+          <p class="section-title">이미지 조합 선택</p>
+          <div class="combo-grid" id="comboGrid"></div>
+          <p class="section-title">Simulation Duration</p>
+          <div class="duration-row" id="durationRow"></div>
+          <button class="start-btn" id="startBtn">시뮬레이션 시작</button>
+          <p class="hint">선택한 조합은 `num_mld`, `num_sld`로 BEB/RL Mbps eval에 전달됩니다. duration은 `eval_duration_sec` 값으로 사용됩니다.</p>
+        </aside>
+
+        <section class="panel stage">
+          <div class="scenario-strip">
+            <div>
+              <div class="scenario-name" id="selectedName">m10_s2</div>
+              <div class="scenario-meta" id="selectedMeta">MLD 10개, SLD 2개</div>
+            </div>
+            <div class="duration-meter">
+              <div class="meter-label"><span>예상 시뮬레이션 시간</span><b id="durationLabel">30s</b></div>
+              <div class="meter-track"><div class="meter-fill" id="previewFill"></div></div>
+            </div>
+          </div>
+          <div class="compare">
+            <article class="sim-card beb">
+              <div class="sim-title"><strong>BEB Baseline</strong><span>Binary Exponential Backoff</span></div>
+              <div class="gauge" id="previewBeb"></div>
+              <div class="metrics">
+                <div class="metric"><b>-</b><span>System Mbps</span></div>
+                <div class="metric"><b>-</b><span>MLD Mbps</span></div>
+                <div class="metric"><b>-</b><span>Collision</span></div>
+              </div>
+            </article>
+            <div class="vs">VS</div>
+            <article class="sim-card rl">
+              <div class="sim-title"><strong>RL Policy</strong><span>Trained MAPPO</span></div>
+              <div class="gauge" id="previewRl"></div>
+              <div class="metrics">
+                <div class="metric"><b>-</b><span>System Mbps</span></div>
+                <div class="metric"><b>-</b><span>MLD Mbps</span></div>
+                <div class="metric"><b>-</b><span>Collision</span></div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="phaseRun" class="phase">
+      <section class="panel stage">
+        <div class="scenario-strip">
+          <div>
+            <div class="scenario-name" id="runName">m10_s2</div>
+            <div class="scenario-meta" id="runMeta">실행 준비</div>
+          </div>
+          <div class="duration-meter">
+            <div class="meter-label"><span>진행 표시</span><b id="runClock">0.0s</b></div>
+            <div class="meter-track"><div class="meter-fill" id="runFill"></div></div>
+          </div>
+        </div>
+        <div class="compare">
+          <article class="sim-card beb">
+            <div class="sim-title"><strong>BEB Baseline</strong><span id="bebState">대기</span></div>
+            <div class="gauge" id="bebGauge"></div>
+            <div class="metrics" id="bebMetrics"></div>
+            <div class="packet-grid" id="bebPackets"></div>
+          </article>
+          <div class="vs">VS</div>
+          <article class="sim-card rl">
+            <div class="sim-title"><strong>RL Policy</strong><span id="rlState">대기</span></div>
+            <div class="gauge" id="rlGauge"></div>
+            <div class="metrics" id="rlMetrics"></div>
+            <div class="packet-grid" id="rlPackets"></div>
+          </article>
+        </div>
+        <div class="log" id="logBox">서버 연결 대기 중...</div>
+        <div class="actions">
+          <button class="secondary-btn" id="showResultsBtn" disabled>결과 보기</button>
+          <button class="secondary-btn" id="rerunBtn">다시 선택</button>
+        </div>
+      </section>
+    </section>
+
+    <section id="phaseResults" class="phase">
+      <section class="panel stage">
+        <div class="scenario-strip">
+          <div>
+            <div class="scenario-name" id="resultName">결과</div>
+            <div class="scenario-meta" id="resultMeta">BEB/RL Mbps summary</div>
+          </div>
+          <button class="secondary-btn" id="backBtn">다른 조합 선택</button>
+        </div>
+        <div class="results">
+          <div class="panel chart-card"><h3>System / MLD / SLD Mbps</h3><canvas id="throughputChart" width="520" height="260"></canvas></div>
+          <div class="panel chart-card"><h3>Success / Collision Rate</h3><canvas id="rateChart" width="520" height="260"></canvas></div>
+        </div>
+        <div class="panel chart-card">
+          <table>
+            <thead><tr><th>Metric</th><th>BEB</th><th>RL</th></tr></thead>
+            <tbody id="resultRows"></tbody>
+          </table>
+        </div>
+        <div class="panel winner">
+          <div class="winner-value" id="winnerValue">-</div>
+          <div class="winner-label" id="winnerLabel">RL improvement over BEB</div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<script>
+const SERVER = location.origin;
+const COMBOS = [
+  ...[2,4,6].flatMap(s => [10,15,20,25,30].map(m => ({id:`m${m}_s${s}`, mld:m, sld:s})))
+];
+const DURATIONS = [10,30,50];
+const state = {
+  combo: COMBOS[0],
+  duration: 30,
+  running: false,
+  startedAt: 0,
+  timer: null,
+  sse: null,
+  results: { beb:null, rl:null },
+  gauges: { beb:0, rl:0 },
+};
+
+const $ = id => document.getElementById(id);
+
+function gaugeSvg(value, color, label='Mbps') {
+  const max = Math.max(1, Math.ceil(Math.max(value, 1) * 1.25));
+  const arc = 172.8;
+  const filled = Math.min(value / max, 1) * arc;
+  return `<svg viewBox="0 0 150 92" aria-label="${label}">
+    <path d="M15 76 A55 55 0 0 1 135 76" fill="none" stroke="#e9eef6" stroke-width="13" stroke-linecap="round"/>
+    <path d="M15 76 A55 55 0 0 1 135 76" fill="none" stroke="${color}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${filled.toFixed(2)} ${arc}"/>
+    <text x="75" y="58" text-anchor="middle" font-size="19" font-weight="850" fill="${color}">${value.toFixed(2)}</text>
+    <text x="75" y="74" text-anchor="middle" font-size="8" font-weight="750" fill="#64748b">${label}</text>
+  </svg>`;
+}
+
+function renderSetup() {
+  $('comboGrid').innerHTML = COMBOS.map(c => `<button class="combo-btn ${c.id===state.combo.id?'active':''}" data-combo="${c.id}">${c.id}</button>`).join('');
+  $('durationRow').innerHTML = DURATIONS.map(d => `<button class="duration-btn ${d===state.duration?'active':''}" data-duration="${d}">${d}s</button>`).join('');
+  $('selectedName').textContent = state.combo.id;
+  $('selectedMeta').textContent = `MLD ${state.combo.mld}개, SLD ${state.combo.sld}개`;
+  $('durationLabel').textContent = `${state.duration}s`;
+  $('previewFill').style.width = `${state.duration / 50 * 100}%`;
+  $('previewBeb').innerHTML = gaugeSvg(0, '#d9466f');
+  $('previewRl').innerHTML = gaugeSvg(0, '#2563eb');
+}
+
+function setPhase(name) {
+  for (const el of document.querySelectorAll('.phase')) el.classList.remove('active');
+  $(name).classList.add('active');
+}
+
+function setStatus(text, running=false) {
+  $('statusText').textContent = text;
+  $('statusDot').className = `dot ${running ? 'run' : ''}`;
+}
+
+function metricHtml(summary) {
+  const s = summary || {};
+  return `
+    <div class="metric"><b>${fmt(s.mbps_system)}</b><span>System Mbps</span></div>
+    <div class="metric"><b>${fmt(s.mbps_mld)}</b><span>MLD Mbps</span></div>
+    <div class="metric"><b>${pct(s.collision_rate)}</b><span>Collision</span></div>`;
+}
+
+function initPackets(id) {
+  $(id).innerHTML = Array.from({length:96}, () => '<div class="packet"></div>').join('');
+}
+
+function fillPackets(id, cls, ratio) {
+  const cells = [...$(id).children];
+  const count = Math.max(0, Math.min(cells.length, Math.round(cells.length * ratio)));
+  cells.forEach((cell, i) => cell.className = `packet ${i < count ? cls : ''}`);
+}
+
+function fmt(v) {
+  return Number.isFinite(v) ? v.toFixed(3) : '-';
+}
+
+function pct(v) {
+  return Number.isFinite(v) ? `${(v * 100).toFixed(1)}%` : '-';
+}
+
+async function startSimulation() {
+  state.results = { beb:null, rl:null };
+  state.gauges = { beb:0, rl:0 };
+  setPhase('phaseRun');
+  setStatus('시뮬레이션 실행 중', true);
+  $('runName').textContent = state.combo.id;
+  $('runMeta').textContent = `MLD ${state.combo.mld}, SLD ${state.combo.sld}, duration ${state.duration}s`;
+  $('logBox').textContent = 'BEB/RL 프로세스 시작 요청 중...';
+  $('showResultsBtn').disabled = true;
+  $('bebState').textContent = '실행 중';
+  $('rlState').textContent = '실행 중';
+  $('bebMetrics').innerHTML = metricHtml(null);
+  $('rlMetrics').innerHTML = metricHtml(null);
+  $('bebGauge').innerHTML = gaugeSvg(0, '#d9466f');
+  $('rlGauge').innerHTML = gaugeSvg(0, '#2563eb');
+  initPackets('bebPackets');
+  initPackets('rlPackets');
+
+  const resp = await fetch(`${SERVER}/api/start`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({combo: state.combo.id, duration_sec: state.duration})
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    $('logBox').textContent = data.error || '시뮬레이션 시작 실패';
+    setStatus('오류');
+    return;
+  }
+
+  state.startedAt = performance.now();
+  state.timer = setInterval(updateClock, 100);
+  connectSse();
+}
+
+function connectSse() {
+  if (state.sse) state.sse.close();
+  state.sse = new EventSource(`${SERVER}/api/progress`);
+  state.sse.onmessage = (message) => handleEvent(JSON.parse(message.data));
+  state.sse.onerror = () => appendLog('server', 'SSE connection interrupted.');
+}
+
+function updateClock() {
+  const elapsed = (performance.now() - state.startedAt) / 1000;
+  $('runClock').textContent = `${elapsed.toFixed(1)}s`;
+  $('runFill').style.width = `${Math.min(98, elapsed / Math.max(state.duration, 1) * 100)}%`;
+}
+
+function handleEvent(evt) {
+  if (evt.type === 'started') {
+    appendLog('server', `started ${evt.combo.id}, duration=${evt.duration_sec}s, seed=${evt.seed}`);
+    return;
+  }
+  if (evt.type === 'log') {
+    appendLog(evt.policy, evt.line);
+    return;
+  }
+  if (evt.type === 'episode') {
+    const color = evt.policy === 'beb' ? '#d9466f' : '#2563eb';
+    const gaugeId = evt.policy === 'beb' ? 'bebGauge' : 'rlGauge';
+    const metricId = evt.policy === 'beb' ? 'bebMetrics' : 'rlMetrics';
+    const packetId = evt.policy === 'beb' ? 'bebPackets' : 'rlPackets';
+    const packetCls = evt.policy === 'beb' ? 'beb-on' : 'rl-on';
+    $(gaugeId).innerHTML = gaugeSvg(evt.mbps_system, color);
+    $(metricId).innerHTML = metricHtml({
+      mbps_system: evt.mbps_system,
+      mbps_mld: evt.mbps_mld,
+      collision_rate: NaN,
+    });
+    fillPackets(packetId, packetCls, evt.ep / evt.total);
+    return;
+  }
+  if (evt.type === 'summary') {
+    state.results[evt.policy] = evt;
+    if (evt.policy === 'beb') {
+      $('bebState').textContent = '완료';
+      $('bebGauge').innerHTML = gaugeSvg(evt.mbps_system, '#d9466f');
+      $('bebMetrics').innerHTML = metricHtml(evt);
+      fillPackets('bebPackets', 'beb-on', 1);
+    } else {
+      $('rlState').textContent = '완료';
+      $('rlGauge').innerHTML = gaugeSvg(evt.mbps_system, '#2563eb');
+      $('rlMetrics').innerHTML = metricHtml(evt);
+      fillPackets('rlPackets', 'rl-on', 1);
+    }
+    return;
+  }
+  if (evt.type === 'error') {
+    appendLog(evt.policy || 'server', evt.msg);
+    return;
+  }
+  if (evt.type === 'done') {
+    if (state.sse) state.sse.close();
+    clearInterval(state.timer);
+    $('runClock').textContent = 'done';
+    $('runFill').style.width = '100%';
+    $('showResultsBtn').disabled = !(state.results.beb && state.results.rl);
+    setStatus(state.results.beb && state.results.rl ? '완료' : '오류');
+  }
+}
+
+function appendLog(policy, line) {
+  if (!line) return;
+  const box = $('logBox');
+  const prefix = policy ? `[${policy.toUpperCase()}] ` : '';
+  box.textContent += `\n${prefix}${line}`;
+  box.scrollTop = box.scrollHeight;
+}
+
+function showResults() {
+  setPhase('phaseResults');
+  $('resultName').textContent = `${state.combo.id} 결과`;
+  $('resultMeta').textContent = `MLD ${state.combo.mld}, SLD ${state.combo.sld}, duration ${state.duration}s`;
+  renderResultTable();
+  drawThroughputChart();
+  drawRateChart();
+}
+
+function renderResultTable() {
+  const b = state.results.beb || {};
+  const r = state.results.rl || {};
+  const rows = [
+    ['System Mbps', fmt(b.mbps_system), fmt(r.mbps_system)],
+    ['MLD Mbps', fmt(b.mbps_mld), fmt(r.mbps_mld)],
+    ['SLD Mbps', fmt(b.mbps_sld), fmt(r.mbps_sld)],
+    ['2.4GHz MLD Mbps', fmt(b.mbps_24_mld), fmt(r.mbps_24_mld)],
+    ['5GHz MLD Mbps', fmt(b.mbps_5_mld), fmt(r.mbps_5_mld)],
+    ['Success Rate', pct(b.success_rate), pct(r.success_rate)],
+    ['Collision Rate', pct(b.collision_rate), pct(r.collision_rate)],
+    ['Tx Ratio', pct(b.tx_ratio), pct(r.tx_ratio)],
+  ];
+  $('resultRows').innerHTML = rows.map(row => `<tr><td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td></tr>`).join('');
+  const improvement = b.mbps_system > 0 ? ((r.mbps_system - b.mbps_system) / b.mbps_system) * 100 : NaN;
+  $('winnerValue').textContent = Number.isFinite(improvement) ? `${improvement >= 0 ? '+' : ''}${improvement.toFixed(1)}%` : '-';
+  $('winnerValue').style.color = improvement >= 0 ? '#16a34a' : '#dc2626';
+  $('winnerLabel').textContent = `RL system Mbps ${fmt(r.mbps_system)} vs BEB ${fmt(b.mbps_system)}`;
+}
+
+function drawBars(canvasId, labels, groups, maxValue, formatter) {
+  const canvas = $(canvasId);
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.font = '12px Segoe UI';
+  ctx.fillStyle = '#64748b';
+  const pad = {l:44,r:18,t:18,b:42};
+  const plotW = w - pad.l - pad.r;
+  const plotH = h - pad.t - pad.b;
+  ctx.strokeStyle = '#e5eaf2';
+  ctx.lineWidth = 1;
+  for (let i=0;i<=4;i++) {
+    const y = pad.t + plotH - (plotH * i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w-pad.r, y); ctx.stroke();
+    ctx.fillText(formatter(maxValue * i / 4), 6, y + 4);
+  }
+  const slot = plotW / labels.length;
+  const barW = Math.min(44, slot / 3);
+  labels.forEach((label, i) => {
+    const center = pad.l + slot * i + slot / 2;
+    groups.forEach((g, j) => {
+      const value = g.values[i] || 0;
+      const bh = maxValue > 0 ? (value / maxValue) * plotH : 0;
+      const x = center + (j - .5) * (barW + 5) - barW / 2;
+      const y = pad.t + plotH - bh;
+      ctx.fillStyle = g.color;
+      ctx.fillRect(x, y, barW, bh);
+      ctx.fillStyle = '#172033';
+      ctx.textAlign = 'center';
+      ctx.fillText(formatter(value), x + barW / 2, y - 5);
+    });
+    ctx.fillStyle = '#475569';
+    ctx.fillText(label, center, h - 15);
+  });
+  ctx.textAlign = 'left';
+  groups.forEach((g, i) => {
+    ctx.fillStyle = g.color; ctx.fillRect(w - 118 + i*58, 8, 10, 10);
+    ctx.fillStyle = '#475569'; ctx.fillText(g.name, w - 104 + i*58, 18);
+  });
+}
+
+function drawThroughputChart() {
+  const b = state.results.beb || {};
+  const r = state.results.rl || {};
+  const labels = ['System','MLD','SLD'];
+  const beb = [b.mbps_system, b.mbps_mld, b.mbps_sld].map(v => v || 0);
+  const rl = [r.mbps_system, r.mbps_mld, r.mbps_sld].map(v => v || 0);
+  drawBars('throughputChart', labels, [
+    {name:'BEB', color:'#d9466f', values:beb},
+    {name:'RL', color:'#2563eb', values:rl},
+  ], Math.max(1, ...beb, ...rl) * 1.25, v => v.toFixed(2));
+}
+
+function drawRateChart() {
+  const b = state.results.beb || {};
+  const r = state.results.rl || {};
+  const labels = ['Success','Collision','Tx'];
+  const beb = [b.success_rate, b.collision_rate, b.tx_ratio].map(v => v || 0);
+  const rl = [r.success_rate, r.collision_rate, r.tx_ratio].map(v => v || 0);
+  drawBars('rateChart', labels, [
+    {name:'BEB', color:'#d9466f', values:beb},
+    {name:'RL', color:'#2563eb', values:rl},
+  ], 1, v => `${Math.round(v * 100)}%`);
+}
+
+document.addEventListener('click', (event) => {
+  const comboBtn = event.target.closest('[data-combo]');
+  if (comboBtn) {
+    state.combo = COMBOS.find(c => c.id === comboBtn.dataset.combo);
+    renderSetup();
+  }
+  const durationBtn = event.target.closest('[data-duration]');
+  if (durationBtn) {
+    state.duration = Number(durationBtn.dataset.duration);
+    renderSetup();
+  }
+});
+
+$('startBtn').addEventListener('click', startSimulation);
+$('showResultsBtn').addEventListener('click', showResults);
+$('rerunBtn').addEventListener('click', () => { if (state.sse) state.sse.close(); setPhase('phaseSetup'); setStatus('대기 중'); });
+$('backBtn').addEventListener('click', () => { setPhase('phaseSetup'); setStatus('대기 중'); });
+
+renderSetup();
+</script>
+</body>
+</html>
