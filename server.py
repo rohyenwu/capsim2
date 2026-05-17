@@ -102,7 +102,7 @@ def _base_args(combo: dict[str, int | str], duration_sec: int, seed: int) -> lis
         "--mld_success_reward",
         "1.0",
         "--eval_episodes",
-        "1",
+        "4",
         "--eval_duration_sec",
         str(float(duration_sec)),
         "--slot_time_sec",
