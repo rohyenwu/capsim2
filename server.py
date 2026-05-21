@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -38,6 +39,7 @@ COMBOS = [
 ]
 VALID_DURATIONS = {10, 30, 50}
 FIXED_SEED = int(os.environ.get("CAPSIM_SEED", "1"))
+EVAL_EPISODES = int(os.environ.get("CAPSIM_EVAL_EPISODES", "4"))
 
 _event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
 _run_lock = threading.Lock()
@@ -102,7 +104,7 @@ def _base_args(combo: dict[str, int | str], duration_sec: int, seed: int) -> lis
         "--mld_success_reward",
         "1.0",
         "--eval_episodes",
-        "4",
+        str(EVAL_EPISODES),
         "--eval_duration_sec",
         str(float(duration_sec)),
         "--slot_time_sec",
@@ -136,7 +138,13 @@ def _build_cmd(policy: str, combo: dict[str, int | str], duration_sec: int, seed
     return args
 
 
-def _stream_proc(proc: subprocess.Popen[str], policy: str, eq: queue.Queue[dict[str, Any]]) -> None:
+def _stream_proc(
+    proc: subprocess.Popen[str],
+    policy: str,
+    eq: queue.Queue[dict[str, Any]],
+    latest: dict[str, dict[str, float]],
+    latest_lock: threading.Lock,
+) -> None:
     in_summary = False
     summary: dict[str, float] = {}
 
@@ -147,18 +155,26 @@ def _stream_proc(proc: subprocess.Popen[str], policy: str, eq: queue.Queue[dict[
 
         episode_match = RE_EPISODE.search(line)
         if episode_match:
-            eq.put(
-                {
-                    "type": "episode",
-                    "policy": policy,
-                    "ep": int(episode_match.group("ep")),
-                    "total": int(episode_match.group("total")),
-                    "mbps_system": float(episode_match.group("mbps_sys")),
-                    "mbps_mld": float(episode_match.group("mbps_mld")),
-                    "mbps_sld": float(episode_match.group("mbps_sld")),
-                    "tx_ratio": float(episode_match.group("tx")),
+            event = {
+                "type": "episode",
+                "policy": policy,
+                "ep": int(episode_match.group("ep")),
+                "total": int(episode_match.group("total")),
+                "mbps_system": float(episode_match.group("mbps_sys")),
+                "mbps_mld": float(episode_match.group("mbps_mld")),
+                "mbps_sld": float(episode_match.group("mbps_sld")),
+                "tx_ratio": float(episode_match.group("tx")),
+            }
+            with latest_lock:
+                latest[policy] = {
+                    "ep": float(event["ep"]),
+                    "total": float(event["total"]),
+                    "mbps_system": float(event["mbps_system"]),
+                    "mbps_mld": float(event["mbps_mld"]),
+                    "mbps_sld": float(event["mbps_sld"]),
+                    "tx_ratio": float(event["tx_ratio"]),
                 }
-            )
+            eq.put(event)
             continue
 
         if RE_SUMMARY_HDR.search(line):
@@ -174,24 +190,32 @@ def _stream_proc(proc: subprocess.Popen[str], policy: str, eq: queue.Queue[dict[
 
     proc.wait()
     if summary:
-        eq.put(
-            {
-                "type": "summary",
-                "policy": policy,
-                "returncode": proc.returncode,
-                "mbps_system": summary.get("mbps/system", 0.0),
-                "mbps_mld": summary.get("mbps/mld_total", 0.0),
-                "mbps_sld": summary.get("mbps/sld_total", 0.0),
-                "mbps_24_mld": summary.get("mbps/2_4GHz/mld", 0.0),
-                "mbps_24_sld": summary.get("mbps/2_4GHz/sld", 0.0),
-                "mbps_5_mld": summary.get("mbps/5GHz/mld", 0.0),
-                "success_rate": summary.get("success_rate/system_per_event", 0.0),
-                "collision_rate": summary.get("collision_rate/system_per_event", 0.0),
-                "tx_ratio": summary.get("action/transmit_ratio", 0.0),
-                "active_mld": summary.get("scenario/active_mld", 0.0),
-                "active_sld": summary.get("scenario/active_sld", 0.0),
+        event = {
+            "type": "summary",
+            "policy": policy,
+            "returncode": proc.returncode,
+            "mbps_system": summary.get("mbps/system", 0.0),
+            "mbps_mld": summary.get("mbps/mld_total", 0.0),
+            "mbps_sld": summary.get("mbps/sld_total", 0.0),
+            "mbps_24_mld": summary.get("mbps/2_4GHz/mld", 0.0),
+            "mbps_24_sld": summary.get("mbps/2_4GHz/sld", 0.0),
+            "mbps_5_mld": summary.get("mbps/5GHz/mld", 0.0),
+            "success_rate": summary.get("success_rate/system_per_event", 0.0),
+            "collision_rate": summary.get("collision_rate/system_per_event", 0.0),
+            "tx_ratio": summary.get("action/transmit_ratio", 0.0),
+            "active_mld": summary.get("scenario/active_mld", 0.0),
+            "active_sld": summary.get("scenario/active_sld", 0.0),
+        }
+        with latest_lock:
+            latest[policy] = {
+                "ep": float(EVAL_EPISODES),
+                "total": float(EVAL_EPISODES),
+                "mbps_system": float(event["mbps_system"]),
+                "mbps_mld": float(event["mbps_mld"]),
+                "mbps_sld": float(event["mbps_sld"]),
+                "tx_ratio": float(event["tx_ratio"]),
             }
-        )
+        eq.put(event)
     else:
         eq.put(
             {
@@ -236,7 +260,15 @@ def _start_run(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     def launch() -> None:
         global _running
         try:
-            eq.put({"type": "started", "combo": combo, "duration_sec": duration_sec, "seed": seed})
+            eq.put(
+                {
+                    "type": "started",
+                    "combo": combo,
+                    "duration_sec": duration_sec,
+                    "seed": seed,
+                    "eval_episodes": EVAL_EPISODES,
+                }
+            )
             procs: dict[str, subprocess.Popen[str]] = {}
             for policy in ("beb", "rl"):
                 procs[policy] = subprocess.Popen(
@@ -249,14 +281,42 @@ def _start_run(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
                     bufsize=1,
                 )
 
+            latest: dict[str, dict[str, float]] = {"beb": {}, "rl": {}}
+            latest_lock = threading.Lock()
+            stop_live = threading.Event()
+
+            def emit_live() -> None:
+                started_at = time.monotonic()
+                while not stop_live.is_set():
+                    with latest_lock:
+                        policies = {name: dict(values) for name, values in latest.items()}
+                    eq.put(
+                        {
+                            "type": "live",
+                            "elapsed_wall_sec": round(time.monotonic() - started_at, 2),
+                            "duration_sec": duration_sec,
+                            "eval_episodes": EVAL_EPISODES,
+                            "policies": policies,
+                        }
+                    )
+                    stop_live.wait(1.0)
+
+            live_thread = threading.Thread(target=emit_live, daemon=True)
+            live_thread.start()
             threads = [
-                threading.Thread(target=_stream_proc, args=(procs[policy], policy, eq), daemon=True)
+                threading.Thread(
+                    target=_stream_proc,
+                    args=(procs[policy], policy, eq, latest, latest_lock),
+                    daemon=True,
+                )
                 for policy in ("beb", "rl")
             ]
             for thread in threads:
                 thread.start()
             for thread in threads:
                 thread.join()
+            stop_live.set()
+            live_thread.join(timeout=1.5)
         except Exception as exc:
             eq.put({"type": "error", "policy": "server", "msg": str(exc)})
         finally:

@@ -216,6 +216,7 @@ const state = {
   timer: null,
   sse: null,
   results: { beb:null, rl:null },
+  live: { beb:null, rl:null },
   gauges: { beb:0, rl:0 },
 };
 
@@ -282,6 +283,7 @@ function pct(v) {
 
 async function startSimulation() {
   state.results = { beb:null, rl:null };
+  state.live = { beb:null, rl:null };
   state.gauges = { beb:0, rl:0 };
   setPhase('phaseRun');
   setStatus('시뮬레이션 실행 중', true);
@@ -330,7 +332,11 @@ function updateClock() {
 
 function handleEvent(evt) {
   if (evt.type === 'started') {
-    appendLog('server', `started ${evt.combo.id}, duration=${evt.duration_sec}s, seed=${evt.seed}`);
+    appendLog('server', `started ${evt.combo.id}, duration=${evt.duration_sec}s, seed=${evt.seed}, episodes=${evt.eval_episodes || '-'}`);
+    return;
+  }
+  if (evt.type === 'live') {
+    updateLive(evt);
     return;
   }
   if (evt.type === 'log') {
@@ -378,6 +384,41 @@ function handleEvent(evt) {
     $('runFill').style.width = '100%';
     $('showResultsBtn').disabled = !(state.results.beb && state.results.rl);
     setStatus(state.results.beb && state.results.rl ? '완료' : '오류');
+  }
+}
+
+function updateLive(evt) {
+  const elapsed = Number(evt.elapsed_wall_sec);
+  if (Number.isFinite(elapsed)) {
+    $('runClock').textContent = `${elapsed.toFixed(1)}s`;
+    $('runFill').style.width = `${Math.min(98, elapsed / Math.max(state.duration, 1) * 100)}%`;
+  }
+
+  for (const policy of ['beb', 'rl']) {
+    const data = evt.policies && evt.policies[policy];
+    const stateId = policy === 'beb' ? 'bebState' : 'rlState';
+    if (!data || !Number.isFinite(data.mbps_system)) {
+      $(stateId).textContent = 'measuring...';
+      continue;
+    }
+
+    state.live[policy] = data;
+    const color = policy === 'beb' ? '#d9466f' : '#2563eb';
+    const gaugeId = policy === 'beb' ? 'bebGauge' : 'rlGauge';
+    const metricId = policy === 'beb' ? 'bebMetrics' : 'rlMetrics';
+    const packetId = policy === 'beb' ? 'bebPackets' : 'rlPackets';
+    const packetCls = policy === 'beb' ? 'beb-on' : 'rl-on';
+    const ep = Number(data.ep || 0);
+    const total = Number(data.total || evt.eval_episodes || 1);
+
+    $(stateId).textContent = `live ${ep}/${total}`;
+    $(gaugeId).innerHTML = gaugeSvg(Number(data.mbps_system), color);
+    $(metricId).innerHTML = metricHtml({
+      mbps_system: Number(data.mbps_system),
+      mbps_mld: Number(data.mbps_mld),
+      collision_rate: NaN,
+    });
+    fillPackets(packetId, packetCls, total > 0 ? ep / total : 0);
   }
 }
 
