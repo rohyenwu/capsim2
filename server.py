@@ -434,28 +434,31 @@ class DemoHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _send_sse(self) -> None:
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(b": connected\n\n")
-        self.wfile.flush()
-
-        while True:
-            try:
-                event = _event_queue.get(timeout=30)
-            except queue.Empty:
-                self.wfile.write(b": heartbeat\n\n")
-                self.wfile.flush()
-                continue
-
-            data = _json_bytes(event)
-            self.wfile.write(b"data: " + data + b"\n\n")
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(b": connected\n\n")
             self.wfile.flush()
-            if event.get("type") == "done":
-                break
+
+            while True:
+                try:
+                    event = _event_queue.get(timeout=30)
+                except queue.Empty:
+                    self.wfile.write(b": heartbeat\n\n")
+                    self.wfile.flush()
+                    continue
+
+                data = _json_bytes(event)
+                self.wfile.write(b"data: " + data + b"\n\n")
+                self.wfile.flush()
+                if event.get("type") == "done":
+                    break
+        except (BrokenPipeError, ConnectionResetError):
+            return
 
 
 def main() -> None:
