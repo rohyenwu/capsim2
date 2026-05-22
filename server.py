@@ -53,6 +53,14 @@ RE_EPISODE = re.compile(
     r" \| mbps/sld_total=(?P<mbps_sld>[0-9.]+)"
     r" \| tx_ratio=(?P<tx>[0-9.]+)"
 )
+RE_LIVE = re.compile(
+    r"\[(?P<policy>RL|BEB) Mbps Live\] Episode (?P<ep>\d+)/(?P<total>\d+)"
+    r" \| elapsed=(?P<elapsed>[0-9.]+)/(?P<duration>[0-9.]+)"
+    r" \| mbps/system=(?P<mbps_sys>[0-9.]+)"
+    r" \| mbps/mld_total=(?P<mbps_mld>[0-9.]+)"
+    r" \| mbps/sld_total=(?P<mbps_sld>[0-9.]+)"
+    r" \| tx_ratio=(?P<tx>[0-9.]+)"
+)
 RE_SUMMARY_HDR = re.compile(r"\[(RL|BEB) Mbps Summary\]")
 RE_SUMMARY_LINE = re.compile(r"^\s{2}(?P<key>[\w/.]+):\s+(?P<val>[0-9.eE+\-]+)")
 
@@ -152,6 +160,39 @@ def _stream_proc(
     for raw in proc.stdout:
         line = raw.rstrip("\n")
         eq.put({"type": "log", "policy": policy, "line": line})
+
+        live_match = RE_LIVE.search(line)
+        if live_match:
+            elapsed = float(live_match.group("elapsed"))
+            duration = max(float(live_match.group("duration")), 1e-12)
+            episode_progress = (
+                float(int(live_match.group("ep")) - 1)
+                + min(max(elapsed / duration, 0.0), 1.0)
+            )
+            event = {
+                "type": "live_metric",
+                "policy": policy,
+                "ep": episode_progress,
+                "episode_index": int(live_match.group("ep")),
+                "total": int(live_match.group("total")),
+                "elapsed_sim_sec": elapsed,
+                "duration_sec": duration,
+                "mbps_system": float(live_match.group("mbps_sys")),
+                "mbps_mld": float(live_match.group("mbps_mld")),
+                "mbps_sld": float(live_match.group("mbps_sld")),
+                "tx_ratio": float(live_match.group("tx")),
+            }
+            with latest_lock:
+                latest[policy] = {
+                    "ep": float(event["ep"]),
+                    "total": float(event["total"]),
+                    "mbps_system": float(event["mbps_system"]),
+                    "mbps_mld": float(event["mbps_mld"]),
+                    "mbps_sld": float(event["mbps_sld"]),
+                    "tx_ratio": float(event["tx_ratio"]),
+                }
+            eq.put(event)
+            continue
 
         episode_match = RE_EPISODE.search(line)
         if episode_match:

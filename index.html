@@ -339,6 +339,10 @@ function handleEvent(evt) {
     updateLive(evt);
     return;
   }
+  if (evt.type === 'live_metric') {
+    updatePolicyMetric(evt);
+    return;
+  }
   if (evt.type === 'log') {
     appendLog(evt.policy, evt.line);
     return;
@@ -385,6 +389,26 @@ function handleEvent(evt) {
     $('showResultsBtn').disabled = !(state.results.beb && state.results.rl);
     setStatus(state.results.beb && state.results.rl ? '완료' : '오류');
   }
+}
+
+function updatePolicyMetric(evt) {
+  const color = evt.policy === 'beb' ? '#d9466f' : '#2563eb';
+  const gaugeId = evt.policy === 'beb' ? 'bebGauge' : 'rlGauge';
+  const metricId = evt.policy === 'beb' ? 'bebMetrics' : 'rlMetrics';
+  const packetId = evt.policy === 'beb' ? 'bebPackets' : 'rlPackets';
+  const packetCls = evt.policy === 'beb' ? 'beb-on' : 'rl-on';
+  const stateId = evt.policy === 'beb' ? 'bebState' : 'rlState';
+  const ep = Number(evt.ep || 0);
+  const total = Number(evt.total || 1);
+
+  $(stateId).textContent = `live ${ep.toFixed(2)}/${total}`;
+  $(gaugeId).innerHTML = gaugeSvg(Number(evt.mbps_system), color);
+  $(metricId).innerHTML = metricHtml({
+    mbps_system: Number(evt.mbps_system),
+    mbps_mld: Number(evt.mbps_mld),
+    collision_rate: NaN,
+  });
+  fillPackets(packetId, packetCls, total > 0 ? ep / total : 0);
 }
 
 function updateLive(evt) {
