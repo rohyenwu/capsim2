@@ -37,7 +37,7 @@ COMBOS = [
     for sld in (2, 4, 6)
     for mld in (10, 15, 20, 25, 30)
 ]
-VALID_DURATIONS = {10, 30, 50}
+VALID_DURATIONS = {20, 30, 40}
 FIXED_SEED = int(os.environ.get("CAPSIM_SEED", "1"))
 EVAL_EPISODES = int(os.environ.get("CAPSIM_EVAL_EPISODES", "4"))
 
@@ -278,7 +278,7 @@ def _start_run(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     if combo is None:
         return 400, {"error": f"Unknown combo: {combo_id}"}
     if duration_sec not in VALID_DURATIONS:
-        return 400, {"error": "duration_sec must be one of 10, 30, 50"}
+        return 400, {"error": "duration_sec must be one of 20, 30, 40"}
     if not REPO_DIR.exists():
         return 500, {"error": f"Repo directory was not found: {REPO_DIR}"}
     if not MODEL_DIR.exists():

@@ -207,7 +207,7 @@ const SERVER = location.origin;
 const COMBOS = [
   ...[2,4,6].flatMap(s => [10,15,20,25,30].map(m => ({id:`m${m}_s${s}`, mld:m, sld:s})))
 ];
-const DURATIONS = [10,30,50];
+const DURATIONS = [20,30,40];
 const state = {
   combo: COMBOS[0],
   duration: 30,
@@ -240,7 +240,7 @@ function renderSetup() {
   $('selectedName').textContent = state.combo.id;
   $('selectedMeta').textContent = `MLD ${state.combo.mld}개, SLD ${state.combo.sld}개`;
   $('durationLabel').textContent = `${state.duration}s`;
-  $('previewFill').style.width = `${state.duration / 50 * 100}%`;
+  $('previewFill').style.width = `${state.duration / 40 * 100}%`;
   $('previewBeb').innerHTML = gaugeSvg(0, '#d9466f');
   $('previewRl').innerHTML = gaugeSvg(0, '#2563eb');
 }
