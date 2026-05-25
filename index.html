@@ -540,9 +540,9 @@ function drawThroughputChart() {
 function drawRateChart() {
   const b = state.results.beb || {};
   const r = state.results.rl || {};
-  const labels = ['Success','Collision','Tx'];
-  const beb = [b.success_rate, b.collision_rate, b.tx_ratio].map(v => v || 0);
-  const rl = [r.success_rate, r.collision_rate, r.tx_ratio].map(v => v || 0);
+  const labels = ['Success','Collision'];
+  const beb = [b.success_rate, b.collision_rate].map(v => v || 0);
+  const rl = [r.success_rate, r.collision_rate].map(v => v || 0);
   drawBars('rateChart', labels, [
     {name:'BEB', color:'#d9466f', values:beb},
     {name:'RL', color:'#2563eb', values:rl},
