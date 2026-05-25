@@ -60,7 +60,7 @@ main{max-width:1180px;width:100%;margin:0 auto;padding:22px}
 .packet.beb-on{background:#d9466f}
 .packet.rl-on{background:#2563eb}
 .vs{display:grid;place-items:center;color:#94a3b8;font-weight:900}
-.log{margin-top:14px;background:#111827;color:#cbd5e1;border-radius:8px;padding:12px;height:150px;overflow:auto;font:12px/1.5 Consolas,monospace;white-space:pre-wrap}
+.log{display:none}
 .results{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
 .chart-card{padding:16px}
 .chart-card h3{margin:0 0 10px;text-align:center;font-size:.86rem;color:#475569}
@@ -307,7 +307,7 @@ async function startSimulation() {
   });
   const data = await resp.json();
   if (!resp.ok) {
-    $('logBox').textContent = data.error || '시뮬레이션 시작 실패';
+    setStatus(data.error || '시뮬레이션 시작 실패');
     setStatus('오류');
     return;
   }
@@ -357,7 +357,7 @@ function handleEvent(evt) {
     $(metricId).innerHTML = metricHtml({
       mbps_system: evt.mbps_system,
       mbps_mld: evt.mbps_mld,
-      collision_rate: NaN,
+      collision_rate: evt.collision_rate,
     });
     fillPackets(packetId, packetCls, evt.ep / evt.total);
     return;
@@ -406,7 +406,7 @@ function updatePolicyMetric(evt) {
   $(metricId).innerHTML = metricHtml({
     mbps_system: Number(evt.mbps_system),
     mbps_mld: Number(evt.mbps_mld),
-    collision_rate: NaN,
+    collision_rate: Number(evt.collision_rate),
   });
   fillPackets(packetId, packetCls, total > 0 ? ep / total : 0);
 }
@@ -440,14 +440,16 @@ function updateLive(evt) {
     $(metricId).innerHTML = metricHtml({
       mbps_system: Number(data.mbps_system),
       mbps_mld: Number(data.mbps_mld),
-      collision_rate: NaN,
+      collision_rate: Number(data.collision_rate),
     });
     fillPackets(packetId, packetCls, total > 0 ? ep / total : 0);
   }
 }
 
 function appendLog(policy, line) {
-  if (!line) return;
+  void policy;
+  void line;
+  return;
   const box = $('logBox');
   const prefix = policy ? `[${policy.toUpperCase()}] ` : '';
   box.textContent += `\n${prefix}${line}`;

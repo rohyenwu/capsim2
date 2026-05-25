@@ -51,6 +51,7 @@ RE_EPISODE = re.compile(
     r" \| mbps/system=(?P<mbps_sys>[0-9.]+)"
     r" \| mbps/mld_total=(?P<mbps_mld>[0-9.]+)"
     r" \| mbps/sld_total=(?P<mbps_sld>[0-9.]+)"
+    r" \| collision_rate=(?P<collision>[0-9.]+)"
     r" \| tx_ratio=(?P<tx>[0-9.]+)"
 )
 RE_LIVE = re.compile(
@@ -59,6 +60,7 @@ RE_LIVE = re.compile(
     r" \| mbps/system=(?P<mbps_sys>[0-9.]+)"
     r" \| mbps/mld_total=(?P<mbps_mld>[0-9.]+)"
     r" \| mbps/sld_total=(?P<mbps_sld>[0-9.]+)"
+    r" \| collision_rate=(?P<collision>[0-9.]+)"
     r" \| tx_ratio=(?P<tx>[0-9.]+)"
 )
 RE_SUMMARY_HDR = re.compile(r"\[(RL|BEB) Mbps Summary\]")
@@ -180,6 +182,7 @@ def _stream_proc(
                 "mbps_system": float(live_match.group("mbps_sys")),
                 "mbps_mld": float(live_match.group("mbps_mld")),
                 "mbps_sld": float(live_match.group("mbps_sld")),
+                "collision_rate": float(live_match.group("collision")),
                 "tx_ratio": float(live_match.group("tx")),
             }
             with latest_lock:
@@ -189,6 +192,7 @@ def _stream_proc(
                     "mbps_system": float(event["mbps_system"]),
                     "mbps_mld": float(event["mbps_mld"]),
                     "mbps_sld": float(event["mbps_sld"]),
+                    "collision_rate": float(event["collision_rate"]),
                     "tx_ratio": float(event["tx_ratio"]),
                 }
             eq.put(event)
@@ -204,6 +208,7 @@ def _stream_proc(
                 "mbps_system": float(episode_match.group("mbps_sys")),
                 "mbps_mld": float(episode_match.group("mbps_mld")),
                 "mbps_sld": float(episode_match.group("mbps_sld")),
+                "collision_rate": float(episode_match.group("collision")),
                 "tx_ratio": float(episode_match.group("tx")),
             }
             with latest_lock:
@@ -213,6 +218,7 @@ def _stream_proc(
                     "mbps_system": float(event["mbps_system"]),
                     "mbps_mld": float(event["mbps_mld"]),
                     "mbps_sld": float(event["mbps_sld"]),
+                    "collision_rate": float(event["collision_rate"]),
                     "tx_ratio": float(event["tx_ratio"]),
                 }
             eq.put(event)
@@ -254,6 +260,7 @@ def _stream_proc(
                 "mbps_system": float(event["mbps_system"]),
                 "mbps_mld": float(event["mbps_mld"]),
                 "mbps_sld": float(event["mbps_sld"]),
+                "collision_rate": float(event["collision_rate"]),
                 "tx_ratio": float(event["tx_ratio"]),
             }
         eq.put(event)
