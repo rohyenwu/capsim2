@@ -447,12 +447,12 @@ function updateLive(evt) {
 }
 
 function appendLog(policy, line) {
-  void policy;
-  void line;
-  return;
+  if (!line) return;
   const box = $('logBox');
   const prefix = policy ? `[${policy.toUpperCase()}] ` : '';
   box.textContent += `\n${prefix}${line}`;
+  const lines = box.textContent.split('\n');
+  if (lines.length > 120) box.textContent = lines.slice(-120).join('\n');
   box.scrollTop = box.scrollHeight;
 }
 
