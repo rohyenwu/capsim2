@@ -60,7 +60,7 @@ main{max-width:1180px;width:100%;margin:0 auto;padding:22px}
 .packet.beb-on{background:#d9466f}
 .packet.rl-on{background:#2563eb}
 .vs{display:grid;place-items:center;color:#94a3b8;font-weight:900}
-.log{display:none}
+.log{display:block;margin-top:14px;padding:12px;max-height:180px;overflow:auto;white-space:pre-wrap;font-size:.72rem;line-height:1.45;background:#0f172a;color:#e5e7eb;border-radius:8px}
 .results{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
 .chart-card{padding:16px}
 .chart-card h3{margin:0 0 10px;text-align:center;font-size:.86rem;color:#475569}
@@ -300,15 +300,25 @@ async function startSimulation() {
   initPackets('bebPackets');
   initPackets('rlPackets');
 
-  const resp = await fetch(`${SERVER}/api/start`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({combo: state.combo.id, duration_sec: state.duration})
-  });
-  const data = await resp.json();
+  let resp;
+  let data;
+  try {
+    resp = await fetch(`${SERVER}/api/start`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({combo: state.combo.id, duration_sec: state.duration})
+    });
+    data = await resp.json();
+  } catch (err) {
+    const msg = `서버 요청 실패: ${err.message}`;
+    setStatus(msg);
+    appendLog('server', msg);
+    return;
+  }
   if (!resp.ok) {
-    setStatus(data.error || '시뮬레이션 시작 실패');
-    setStatus('오류');
+    const msg = data.error || '시뮬레이션 시작 실패';
+    setStatus(msg);
+    appendLog('server', msg);
     return;
   }
 
@@ -386,8 +396,14 @@ function handleEvent(evt) {
     clearInterval(state.timer);
     $('runClock').textContent = 'done';
     $('runFill').style.width = '100%';
-    $('showResultsBtn').disabled = !(state.results.beb && state.results.rl);
-    setStatus(state.results.beb && state.results.rl ? '완료' : '오류');
+    const ok = state.results.beb && state.results.rl;
+    $('showResultsBtn').disabled = !ok;
+    if (ok) {
+      setStatus('완료');
+    } else {
+      setStatus('결과 수집 실패');
+      appendLog('server', 'BEB 또는 RL summary가 수집되지 않았습니다. 위 로그의 프로세스 오류를 확인하세요.');
+    }
   }
 }
 
